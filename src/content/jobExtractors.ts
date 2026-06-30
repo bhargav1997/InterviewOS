@@ -2,12 +2,13 @@ import { JobDescription } from '../types';
 import { extractSkillsFromText } from '../taxonomy/skills';
 import { extractActionVerbs } from '../taxonomy/actionVerbs';
 
-// Helper to filter out generic page headings / SEO search queries
+// Helper to filter out generic page headings / SEO search queries / navigation badges
 function cleanTitle(title: string): string {
   const t = title.replace(/\s+/g, ' ').trim();
   if (
     !t ||
     /jobs\s+in|hiring\s+in|careers\s+in|work\s+from\s+home|remote\s+jobs|job\s+search/i.test(t) ||
+    /notification|message|inbox|sign\s+in|join\s+now|network|messaging|feed/i.test(t) ||
     t.toLowerCase() === 'indeed' ||
     t.toLowerCase() === 'linkedin' ||
     t.length > 85 // Extremely long titles are usually page headings/SEO strings, not job roles
@@ -28,28 +29,42 @@ export function extractJobDescriptionFromDOM(): JobDescription {
 
   // Scope queries to the active job description pane to prevent matching page navigation/search headings
   if (hostname.includes('linkedin.com')) {
-    const pane = document.querySelector('.jobs-search__job-details, .jobs-details, #main') || document;
+    // Target the specific job details pane (handles split view and details pages)
+    const pane = document.querySelector('.jobs-search-two-pane__details, .jobs-search__job-details, .jobs-details, main.scaffold-layout__main, .topcard-layout, #main');
     
-    title = cleanTitle(getText('.job-details-jobs-unified-top-card__job-title, .jobs-unified-top-card__job-title, .jobs-details-top-card__job-title', pane));
-    if (!title) {
-      title = cleanTitle(getText('h1, h2', pane));
+    if (pane) {
+      title = cleanTitle(getText('.job-details-jobs-unified-top-card__job-title, .jobs-unified-top-card__job-title, .jobs-details-top-card__job-title, h1.t-24, h1.t-bold, h1.topcard-layout__title', pane));
+      if (!title) {
+        title = cleanTitle(getText('h1', pane));
+      }
+      company = getText('.job-details-jobs-unified-top-card__company-name, .jobs-unified-top-card__company-name, .jobs-details-top-card__company-url, a[href*="/company/"]', pane);
+      location = getText('.job-details-jobs-unified-top-card__bullet, .jobs-unified-top-card__bullet, .jobs-details-top-card__bullet', pane);
+      rawText = getText('#job-details, .jobs-description-content, .jobs-description__content', pane);
+    } else {
+      // Direct specific selector query if full layout container cannot be resolved
+      title = cleanTitle(getText('.job-details-jobs-unified-top-card__job-title, .jobs-unified-top-card__job-title, .jobs-details-top-card__job-title'));
+      company = getText('.job-details-jobs-unified-top-card__company-name, .jobs-unified-top-card__company-name, a[href*="/company/"]');
+      location = getText('.job-details-jobs-unified-top-card__bullet, .jobs-unified-top-card__bullet');
+      rawText = getText('#job-details, .jobs-description-content, .jobs-description__content');
     }
-    
-    company = getText('.job-details-jobs-unified-top-card__company-name, .jobs-unified-top-card__company-name, .jobs-details-top-card__company-url', pane);
-    location = getText('.job-details-jobs-unified-top-card__bullet, .jobs-unified-top-card__bullet, .jobs-details-top-card__bullet', pane);
-    rawText = getText('#job-details, .jobs-description-content, .jobs-description__content', pane);
 
   } else if (hostname.includes('indeed.com')) {
-    const pane = document.querySelector('.jobsearch-ViewJobLayout-jobDisplay, #vjs-container, .jobsearch-RightPane') || document;
+    const pane = document.querySelector('.jobsearch-ViewJobLayout-jobDisplay, #vjs-container, .jobsearch-RightPane');
     
-    title = cleanTitle(getText('.jobsearch-JobInfoHeader-title, .jobsearch-JobInfoHeader-title-container h1, [data-testid="simulated-header-title"]', pane));
-    if (!title) {
-      title = cleanTitle(getText('h1, h2', pane));
+    if (pane) {
+      title = cleanTitle(getText('.jobsearch-JobInfoHeader-title, .jobsearch-JobInfoHeader-title-container h1, [data-testid="simulated-header-title"]', pane));
+      if (!title) {
+        title = cleanTitle(getText('h1', pane));
+      }
+      company = getText('[data-company-name="true"], a[href*="/cmp/"], .jobsearch-InlineCompanyRating-companyHeader a, .jobsearch-InlineCompanyRating-companyHeader', pane);
+      location = getText('[data-testid="job-location"], .jobsearch-JobInfoHeader-subtitle', pane);
+      rawText = getText('#jobDescriptionText', pane);
+    } else {
+      title = cleanTitle(getText('.jobsearch-JobInfoHeader-title, [data-testid="simulated-header-title"]'));
+      company = getText('[data-company-name="true"], a[href*="/cmp/"]');
+      location = getText('[data-testid="job-location"]');
+      rawText = getText('#jobDescriptionText');
     }
-    
-    company = getText('[data-company-name="true"], .jobsearch-InlineCompanyRating-companyHeader a, .jobsearch-InlineCompanyRating-companyHeader', pane);
-    location = getText('[data-testid="job-location"], .jobsearch-JobInfoHeader-subtitle', pane);
-    rawText = getText('#jobDescriptionText', pane);
 
   } else if (hostname.includes('greenhouse.io')) {
     title = cleanTitle(getText('.app-title, h1.heading'));
